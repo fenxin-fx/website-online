@@ -13,6 +13,7 @@ const elements = {
 
 let session = null;
 let cloudApp = null;
+let anonymousLogin = null;
 let pollTimer = null;
 let cleanupTicker = null;
 let syncing = false;
@@ -53,8 +54,23 @@ function getCloudApp() {
   return cloudApp;
 }
 
+async function ensureAnonymousLogin() {
+  if (!anonymousLogin) {
+    anonymousLogin = (async () => {
+      const auth = getCloudApp().auth();
+      const state = await auth.getLoginState();
+      if (!state?.isAnonymousAuth) await auth.signInAnonymously();
+    })().catch((error) => {
+      anonymousLogin = null;
+      throw error;
+    });
+  }
+  await anonymousLogin;
+}
+
 async function request(action, payload = {}) {
   const config = cloudbaseConfig;
+  await ensureAnonymousLogin();
   const response = await getCloudApp().callFunction({
     name: config.functionName ?? "room-api",
     data: { action, ...payload },

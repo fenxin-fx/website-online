@@ -79,7 +79,7 @@ async function joinRoom(code, name) {
     room.players.push(player);
     touch(room);
     room.status = "playing";
-    await transaction.collection("duel_rooms").doc(code).update({ data: room });
+    await saveRoom(transaction, code, room);
     return { code, playerId: player.id, state: publicState(room, player.id) };
   });
 }
@@ -100,7 +100,7 @@ async function move(code, playerId, index) {
       room.cleanupAt = Date.now() + FINISHED_TTL_MS;
       room.expiresAt = room.cleanupAt;
     }
-    await transaction.collection("duel_rooms").doc(code).update({ data: room });
+    await saveRoom(transaction, code, room);
     return publicState(room, playerId);
   });
 }
@@ -119,7 +119,7 @@ async function leave(code, playerId) {
       room.cleanupAt = Date.now() + FINISHED_TTL_MS;
       room.expiresAt = room.cleanupAt;
       room.updatedAt = Date.now();
-      await transaction.collection("duel_rooms").doc(code).update({ data: room });
+      await saveRoom(transaction, code, room);
     }
     return { ok: true };
   });
@@ -128,7 +128,7 @@ async function leave(code, playerId) {
 async function inRoomTransaction(code, playerId, update) {
   const outcome = await db.runTransaction(async (transaction) => {
     const result = await transaction.collection("duel_rooms").doc(code).get();
-    const room = result.data;
+    const room = documentFrom(result);
     if (!room) throw new Error("ROOM_NOT_FOUND");
     if (room.expiresAt <= Date.now()) {
       await transaction.collection("duel_rooms").doc(code).remove();
@@ -142,8 +142,14 @@ async function inRoomTransaction(code, playerId, update) {
 
 async function requiredRoom(code) {
   const result = await rooms.doc(code).get();
-  if (!result.data) throw new Error("ROOM_NOT_FOUND");
-  return result.data;
+  const room = documentFrom(result);
+  if (!room) throw new Error("ROOM_NOT_FOUND");
+  return room;
+}
+
+function documentFrom(result) {
+  const data = result?.data;
+  return Array.isArray(data) ? data[0] ?? null : data ?? null;
 }
 
 function removeIfExpired(room) {
@@ -175,6 +181,11 @@ function publicState(room, playerId) {
     },
     cleanupAt: room.cleanupAt,
   };
+}
+
+async function saveRoom(transaction, code, room) {
+  const { _id, ...changes } = room;
+  await transaction.collection("duel_rooms").doc(code).update(changes);
 }
 
 function touch(room) {
