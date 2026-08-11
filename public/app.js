@@ -1,3 +1,6 @@
+import cloudbase from "@cloudbase/js-sdk";
+import { cloudbaseConfig } from "./cloudbase-config.js";
+
 const $ = (selector) => document.querySelector(selector);
 
 const elements = {
@@ -9,8 +12,10 @@ const elements = {
 };
 
 let session = null;
-let events = null;
+let cloudApp = null;
+let pollTimer = null;
 let cleanupTicker = null;
+let syncing = false;
 
 for (let index = 0; index < 9; index += 1) {
   const button = document.createElement("button");
@@ -24,8 +29,8 @@ elements.code.addEventListener("input", () => {
   elements.code.value = elements.code.value.replace(/\D/g, "").slice(0, 4);
 });
 
-elements.create.addEventListener("click", () => enter("/api/rooms", { name: getName() }));
-elements.join.addEventListener("click", () => enter("/api/rooms/join", { name: getName(), code: elements.code.value }));
+elements.create.addEventListener("click", () => enter("create", { name: getName() }));
+elements.join.addEventListener("click", () => enter("join", { name: getName(), code: elements.code.value }));
 elements.code.addEventListener("keydown", (event) => { if (event.key === "Enter") elements.join.click(); });
 elements.copyCode.addEventListener("click", async () => {
   await navigator.clipboard.writeText(session.code);
@@ -37,24 +42,36 @@ function getName() {
   return elements.name.value.trim();
 }
 
-async function request(url, options = {}) {
-  const response = await fetch(url, {
-    ...options,
-    headers: { "Content-Type": "application/json", ...options.headers },
-  });
-  const value = await response.json();
-  if (!response.ok) throw new Error(value.error ?? "请求失败，请稍后重试。");
-  return value;
+function getCloudApp() {
+  const config = cloudbaseConfig;
+  if (!config?.envId || config.envId === "YOUR_ENV_ID") {
+    throw new Error("网站正在配置 CloudBase 环境，请稍后再试。");
+  }
+  if (!cloudApp) {
+    cloudApp = cloudbase.init({ env: config.envId, region: config.region ?? "ap-shanghai" });
+  }
+  return cloudApp;
 }
 
-async function enter(url, body) {
+async function request(action, payload = {}) {
+  const config = cloudbaseConfig;
+  const response = await getCloudApp().callFunction({
+    name: config.functionName ?? "room-api",
+    data: { action, ...payload },
+  });
+  const result = response.result;
+  if (!result?.ok) throw new Error(result?.error ?? "请求失败，请稍后重试。");
+  return result.value;
+}
+
+async function enter(action, body) {
   elements.lobbyError.textContent = "";
   if (!body.name) {
     elements.lobbyError.textContent = "请先输入昵称。";
     elements.name.focus();
     return;
   }
-  if (url.endsWith("join") && !/^\d{4}$/.test(body.code)) {
+  if (action === "join" && !/^\d{4}$/.test(body.code)) {
     elements.lobbyError.textContent = "请输入四位数字房间码。";
     elements.code.focus();
     return;
@@ -62,12 +79,12 @@ async function enter(url, body) {
 
   setBusy(true);
   try {
-    const result = await request(url, { method: "POST", body: JSON.stringify(body) });
+    const result = await request(action, body);
     session = { code: result.code, playerId: result.playerId };
     elements.lobby.classList.add("hidden");
     elements.room.classList.remove("hidden");
-    connect();
     render(result.state);
+    startPolling();
   } catch (error) {
     elements.lobbyError.textContent = error.message;
   } finally {
@@ -75,16 +92,24 @@ async function enter(url, body) {
   }
 }
 
-function connect() {
-  events?.close();
-  const query = new URLSearchParams({ playerId: session.playerId });
-  events = new EventSource(`/api/rooms/${session.code}/events?${query}`);
-  events.addEventListener("state", (event) => render(JSON.parse(event.data)));
-  events.addEventListener("deleted", (event) => {
-    const { message } = JSON.parse(event.data);
-    showToast(message);
-    resetToLobby();
-  });
+function startPolling() {
+  clearInterval(pollTimer);
+  pollTimer = setInterval(refreshState, 1500);
+}
+
+async function refreshState() {
+  if (!session || syncing) return;
+  syncing = true;
+  try {
+    render(await request("state", session));
+  } catch (error) {
+    if (/没有找到这个房间|身份已失效/.test(error.message)) {
+      showToast("对局数据已清理");
+      resetToLobby();
+    }
+  } finally {
+    syncing = false;
+  }
 }
 
 function render(state) {
@@ -128,10 +153,7 @@ function statusText(state, myTurn) {
 async function move(index) {
   elements.gameError.textContent = "";
   try {
-    await request(`/api/rooms/${session.code}/move`, {
-      method: "POST",
-      body: JSON.stringify({ playerId: session.playerId, index }),
-    });
+    render(await request("move", { ...session, index }));
   } catch (error) {
     elements.gameError.textContent = error.message;
   }
@@ -140,18 +162,15 @@ async function move(index) {
 async function leaveRoom() {
   if (session) {
     try {
-      await request(`/api/rooms/${session.code}/leave`, {
-        method: "POST",
-        body: JSON.stringify({ playerId: session.playerId }),
-      });
+      await request("leave", session);
     } catch { /* The room may already have been cleaned. */ }
   }
   resetToLobby();
 }
 
 function resetToLobby() {
-  events?.close();
-  events = null;
+  clearInterval(pollTimer);
+  pollTimer = null;
   session = null;
   clearInterval(cleanupTicker);
   elements.room.classList.add("hidden");

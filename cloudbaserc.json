@@ -1,0 +1,30 @@
+{
+  "version": "2.0",
+  "envId": "YOUR_ENV_ID",
+  "functionRoot": "./cloudfunctions",
+  "functions": [
+    {
+      "name": "room-api",
+      "timeout": 10,
+      "memorySize": 128,
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "installDependency": true
+    },
+    {
+      "name": "room-cleanup",
+      "timeout": 20,
+      "memorySize": 128,
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "installDependency": true,
+      "triggers": [
+        {
+          "name": "cleanExpiredRoomsEveryMinute",
+          "type": "timer",
+          "config": "0 * * * * * *"
+        }
+      ]
+    }
+  ]
+}
