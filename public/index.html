@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#101525" />
+    <title>方格对决 · 双人联机</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="brand">
+        <span class="brand-mark">× ○</span>
+        <div>
+          <p class="eyebrow">TWO PLAYER · LIVE</p>
+          <h1>方格对决</h1>
+        </div>
+      </header>
+
+      <section id="lobby" class="card lobby">
+        <div class="intro">
+          <span class="tag">无需注册</span>
+          <h2>叫上朋友，<br />来一局。</h2>
+          <p>建立房间，把四位房间码发给另一位玩家。两人到齐后立即开局。</p>
+        </div>
+
+        <div class="actions">
+          <label>
+            <span>你的昵称</span>
+            <input id="name" maxlength="16" autocomplete="nickname" placeholder="例如：小明" />
+          </label>
+          <button id="create" class="primary">建立新房间 <span>→</span></button>
+
+          <div class="divider"><span>或者加入朋友的房间</span></div>
+
+          <label>
+            <span>四位房间码</span>
+            <input id="code" class="code-input" maxlength="4" inputmode="numeric" autocomplete="one-time-code" placeholder="0000" />
+          </label>
+          <button id="join" class="secondary">加入房间</button>
+          <p id="lobby-error" class="error" role="alert"></p>
+        </div>
+      </section>
+
+      <section id="room" class="card room hidden">
+        <div class="room-topbar">
+          <button id="leave" class="text-button">← 离开房间</button>
+          <div class="room-code-wrap">
+            <span>房间码</span>
+            <button id="copy-code" class="room-code" title="点击复制">----</button>
+          </div>
+        </div>
+
+        <div id="waiting" class="waiting hidden">
+          <div class="radar"><i></i><i></i><i></i></div>
+          <h2>等待另一位玩家</h2>
+          <p>把上面的四位房间码发给朋友</p>
+        </div>
+
+        <div id="game" class="game hidden">
+          <div class="scoreboard">
+            <div id="player-x" class="player"><b>X</b><span>玩家一</span></div>
+            <div class="versus">VS</div>
+            <div id="player-o" class="player right"><span>玩家二</span><b>O</b></div>
+          </div>
+
+          <p id="status" class="status">准备中…</p>
+          <div id="board" class="board" aria-label="井字棋棋盘"></div>
+          <p id="cleanup" class="cleanup"></p>
+          <p id="game-error" class="error" role="alert"></p>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="status"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
