@@ -29,6 +29,8 @@ npm test
 
 井字棋规则集中在 `src/game.js`。保留房间 API 和 `RoomStore`，把 `createGame`、`makeMove` 及前端棋盘渲染替换为你的游戏状态和操作即可。
 
-## 部署到 Render
+## 部署到 Zeabur
 
-项目已包含 `render.yaml`。将此目录推送到 GitHub、GitLab 或 Bitbucket 后，在 Render 中通过 Blueprint 导入仓库即可。服务使用平台提供的 `PORT`，不需要数据库或密钥。
+项目已包含 `zbpack.json`，Zeabur 会使用 npm 构建并通过 `npm start` 启动服务。将仓库导入 Zeabur 后，在服务的 Networking 页面生成免费的 `.zeabur.app` 域名即可访问。服务使用平台提供的 `PORT`，不需要数据库或密钥。
+
+仓库同时保留了 `render.yaml`，需要时仍可部署到 Render。
